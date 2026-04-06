@@ -1,5 +1,7 @@
-# knu-haksik-bot
+# KNU HakSik Bot
 Kyungpook National Univeristy School Lunch Bot
+
+\- 경북대학교 학식 알리미 봇
 
 ## 바이브 코딩으로 학식 봇 만들기
 - 자동 알리미가 필요해서 제작하게 됨.
