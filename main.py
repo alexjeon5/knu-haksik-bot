@@ -24,17 +24,25 @@ def fetch_knu_menu():
     monday = today - timedelta(days=today.weekday())
     date_str = monday.strftime('%Y-%m-%d')
     
+    url = f"{BASE_URL}&selDate={date_str}"
+    print(f"[*] 접속 시도 URL: {url}") # 디버그용 로그
+    
     try:
-        response = requests.get(f"{BASE_URL}&selDate={date_str}", headers=HEADERS)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        response = requests.get(url, headers=HEADERS, timeout=10)
+        print(f"[*] 응답 상태 코드: {response.status_code}")
         
-        # 에러 방지를 위해 테이블이 있는지 먼저 확인
+        soup = BeautifulSoup(response.text, 'html.parser')
         table = soup.select_one('.shop_table')
+        
         if not table:
-            print(f"[{datetime.now()}] 식단 테이블을 찾을 수 없습니다.")
+            print("[!] 오류: 식단 테이블(.shop_table)을 찾을 수 없습니다.")
+            # 사이트 HTML 구조가 바뀌었는지 확인하기 위해 일부 출력
+            print(f"[*] HTML 앞부분: {response.text[:200]}")
             return
 
         rows = table.select('tbody tr')
+        print(f"[*] 찾은 데이터 행(row) 개수: {len(rows)}")
+        
         new_menu = {}
         for row in rows:
             cols = row.select('td')
@@ -42,11 +50,12 @@ def fetch_knu_menu():
                 day_info = cols[0].get_text(strip=True)
                 menu_content = cols[1].get_text("\n", strip=True)
                 new_menu[day_info] = menu_content
+                print(f"[*] 데이터 로드 성공: {day_info}")
         
         weekly_menu = new_menu
-        print(f"[{datetime.now()}] 업데이트 성공!")
+        print(f"[*] 총 {len(weekly_menu)}일치 식단 업데이트 완료")
     except Exception as e:
-        print(f"[{datetime.now()}] 에러 발생: {e}")
+        print(f"[!] 크롤링 중 예외 발생: {e}")
 
 async def send_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # '급식' 혹은 '/급식'이라는 메시지가 왔을 때만 동작
