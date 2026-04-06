@@ -22,6 +22,7 @@ class KnuScraper:
         url = f"{config.BASE_URL}?shop_sqno={sqno}&selDate={date_str}"
         
         try:
+            # 웹사이트 접속 및 HTML 파싱
             response = requests.get(url, headers=config.HEADERS, timeout=10)
             response.encoding = 'utf-8'
             soup = BeautifulSoup(response.text, 'html.parser')

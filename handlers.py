@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes
 from datetime import datetime
 import config
 
+# 모든 식당의 데이터를 저장할 전역 변수 (복수형으로 통일)
 current_menus = {}
 
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -20,6 +21,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # '급식' 명령어 처리 (키보드 호출)
     if "급식" in user_text and not target_cafeteria:
         names = list(config.CAFETERIAS.keys())
+        # 버튼을 2개씩 한 줄에 배치
         keyboard = [names[i:i+2] for i in range(0, len(names), 2)]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         await update.message.reply_text("조회할 식당을 선택해주세요 (기본: 점심):", reply_markup=reply_markup)
@@ -33,7 +35,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         today_idx = datetime.now().weekday()
         target_day = weekdays[today_idx]
 
-        if today_idx >= 6:
+        if today_idx >= 6: # 일요일
             await update.message.reply_text("오늘은 일요일입니다. 주말엔 휴무입니다! 🍕")
             return
 

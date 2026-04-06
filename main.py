@@ -16,19 +16,22 @@ def update_menu_task():
         print("[!] 식단 데이터를 가져오는 데 실패했습니다.")
 
 if __name__ == '__main__':
-    # 초기 데이터 로드
     update_menu_task()
     
-    # 스케줄러 (매주 월요일 오전 6시)
     scheduler = BackgroundScheduler()
     scheduler.add_job(update_menu_task, 'cron', day_of_week='mon', hour=6, minute=0)
     scheduler.start()
     
     app = ApplicationBuilder().token(config.TELEGRAM_TOKEN).build()
     
-    # 식당 이름들을 포함하는 정규표현식 패턴 생성 ('저녁 ' 수식어를 선택적으로 허용)
-    cafeteria_names = '|'.join(config.CAFETERIAS.keys())
-    cafeteria_pattern = f"^(저녁\s*)?({cafeteria_names})$"
+    # [수정됨] 공식 이름과 모든 별명을 하나의 리스트로 통합
+    all_valid_names = list(config.CAFETERIAS.keys())
+    for aliases in config.CAFETERIA_ALIASES.values():
+        all_valid_names.extend(aliases)
+        
+    # [수정됨] 식당 이름(공식 명칭 + 별명)들을 모두 모아 정규표현식 패턴 생성
+    cafeteria_names_str = '|'.join(all_valid_names)
+    cafeteria_pattern = f"^(저녁\s*)?({cafeteria_names_str})$"
     
     # 필터 설정: '급식' 단어 포함 또는 정규식 패턴과 일치
     cafeteria_filter = filters.TEXT & (filters.Regex('급식') | filters.Regex(cafeteria_pattern))
