@@ -12,13 +12,13 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     target_cafeteria = None
 
-    # [수정됨] 1. 공식 이름에서 먼저 확인
+    # 1. 공식 이름에서 먼저 확인
     for cafe in config.CAFETERIAS.keys():
         if cafe in user_text:
             target_cafeteria = cafe
             break
 
-    # [수정됨] 2. 공식 이름에서 찾지 못했다면 별명 풀에서 확인
+    # 2. 공식 이름에서 찾지 못했다면 별명 풀에서 확인
     if not target_cafeteria:
         for official_name, aliases in config.CAFETERIA_ALIASES.items():
             for alias in aliases:
@@ -52,6 +52,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         day_data = cafeteria_data.get(target_day, {})
 
         if day_data:
+            # 저녁 키워드 포함 여부에 따라 중식/석식 데이터 분리
             if is_dinner:
                 meal_data = day_data.get('석식', '정보가 없습니다.')
                 meal_title = "🌙 <b>[석식]</b>"
