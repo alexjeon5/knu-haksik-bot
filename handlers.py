@@ -3,9 +3,24 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from datetime import datetime
 import config
+import messages # [추가됨] 분리된 메시지 파일을 불러옵니다.
 
 current_menus = {}
 
+# /start 또는 /help 명령어 핸들러
+async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # 봇을 처음 시작할 때 채팅창 아래에 '급식' 버튼을 기본으로 깔아줍니다.
+    keyboard = [["급식"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    # [수정됨] messages.py 파일에 있는 WELCOME_MSG 변수를 가져와서 출력합니다.
+    await update.message.reply_text(
+        messages.WELCOME_MSG, 
+        parse_mode=ParseMode.HTML, 
+        reply_markup=reply_markup
+    )
+
+# 메뉴 출력 핸들러
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
     user_text = update.message.text.strip()
@@ -24,9 +39,9 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for alias in aliases:
                 if alias in user_text:
                     target_cafeteria = official_name
-                    break # 일치하는 별명을 찾으면 내부 루프 종료
+                    break
             if target_cafeteria:
-                break # 식당이 식별되면 외부 루프도 종료
+                break
 
     # '급식' 명령어 처리 (키보드 호출)
     if "급식" in user_text and not target_cafeteria:
@@ -52,7 +67,6 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         day_data = cafeteria_data.get(target_day, {})
 
         if day_data:
-            # 저녁 키워드 포함 여부에 따라 중식/석식 데이터 분리
             if is_dinner:
                 meal_data = day_data.get('석식', '정보가 없습니다.')
                 meal_title = "🌙 <b>[석식]</b>"
@@ -60,7 +74,6 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 meal_data = day_data.get('중식', '정보가 없습니다.')
                 meal_title = "☀️ <b>[중식]</b>"
             
-            # 응답 시에는 사용자가 입력한 별명 대신 공식 이름을 사용하여 통일감을 줌
             msg = (
                 f"🍴 <b>오늘({target_day}) [{target_cafeteria}] 식단</b>\n"
                 f"━━━━━━━━━━━━━━\n\n"
