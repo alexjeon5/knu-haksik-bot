@@ -15,15 +15,30 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text.strip()
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     # 1. "급식" 입력 시 식당 선택 버튼 출력
     if "급식" in user_text and user_text not in config.CAFETERIAS:
 =======
     # 입력된 텍스트에서 실제 식당 이름 추출
+=======
+>>>>>>> 3b2416f (식당 별명 처리 코드 작업)
     target_cafeteria = None
+
+    # [수정됨] 1. 공식 이름에서 먼저 확인
     for cafe in config.CAFETERIAS.keys():
         if cafe in user_text:
             target_cafeteria = cafe
             break
+
+    # [수정됨] 2. 공식 이름에서 찾지 못했다면 별명 풀에서 확인
+    if not target_cafeteria:
+        for official_name, aliases in config.CAFETERIA_ALIASES.items():
+            for alias in aliases:
+                if alias in user_text:
+                    target_cafeteria = official_name
+                    break # 일치하는 별명을 찾으면 내부 루프 종료
+            if target_cafeteria:
+                break # 식당이 식별되면 외부 루프도 종료
 
     # '급식' 명령어 처리 (키보드 호출)
     if "급식" in user_text and not target_cafeteria:
@@ -52,7 +67,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("조회할 식당을 선택해주세요 (기본: 점심):", reply_markup=reply_markup)
         return
 
-    # 식당 이름이 포함되어 있는 경우 메뉴 출력
+    # 식당 이름(또는 별명)이 인식된 경우 메뉴 출력
     if target_cafeteria:
         is_dinner = "저녁" in user_text
         
@@ -86,7 +101,6 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         day_data = cafeteria_data.get(target_day, {})
 
         if day_data:
-            # '저녁' 수식어 포함 여부에 따라 분기
             if is_dinner:
                 meal_data = day_data.get('석식', '정보가 없습니다.')
                 meal_title = "🌙 <b>[석식]</b>"
@@ -94,7 +108,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 meal_data = day_data.get('중식', '정보가 없습니다.')
                 meal_title = "☀️ <b>[중식]</b>"
             
-            # 단일 식단만 포함하도록 메시지 재구성
+            # 응답 시에는 사용자가 입력한 별명 대신 공식 이름을 사용하여 통일감을 줌
             msg = (
                 f"🍴 <b>오늘({target_day}) [{target_cafeteria}] 식단</b>\n"
                 f"━━━━━━━━━━━━━━\n\n"
