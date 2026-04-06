@@ -6,32 +6,24 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 
 def update_menu_task():
-    print(f"[*] {datetime.now()} 스케줄 작업 시작")
-    menu_data = KnuScraper.fetch_weekly_menu()
-    if menu_data:
-        # handlers 모듈의 전역 변수를 직접 업데이트
-        handlers.current_menu = menu_data
-        print("[*] 메뉴 데이터 업데이트 완료")
-    else:
-        print("[!] 메뉴 데이터를 가져오는데 실패했습니다.")
+    print(f"[*] {datetime.now()} 전체 식당 업데이트 시작")
+    all_menus = KnuScraper.fetch_all_menus()
+    if all_menus:
+        handlers.current_menus = all_menus # handlers의 변수 직접 갱신
+        print(f"[*] {len(all_menus)}개 식당 데이터 업데이트 완료")
 
 if __name__ == '__main__':
-    # 1. 초기 데이터 로드
-    update_menu_task()
+    update_menu_task() # 초기 실행 시 즉시 로드
     
-    # 2. 스케줄러 설정 (매주 월요일 오전 6시)
     scheduler = BackgroundScheduler()
     scheduler.add_job(update_menu_task, 'cron', day_of_week='mon', hour=6, minute=0)
     scheduler.start()
     
-    # 3. 봇 실행
-    if not config.TELEGRAM_TOKEN:
-        print("[!] TELEGRAM_TOKEN이 설정되지 않았습니다.")
-        exit(1)
-        
     app = ApplicationBuilder().token(config.TELEGRAM_TOKEN).build()
-    # '급식'이 포함된 텍스트에 반응
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex('급식'), handlers.menu_handler))
     
-    print("[*] 봇 서버 가동 중...")
+    # '급식' 단어 또는 식당 이름에 반응
+    cafeteria_filter = filters.TEXT & (filters.Regex('급식') | filters.In(config.CAFETERIAS.keys()))
+    app.add_handler(MessageHandler(cafeteria_filter, handlers.menu_handler))
+    
+    print("[*] 봇 가동 중 (멀티 식당 지원 모드)")
     app.run_polling()

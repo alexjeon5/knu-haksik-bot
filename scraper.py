@@ -5,22 +5,29 @@ import config
 
 class KnuScraper:
     @staticmethod
-    def fetch_weekly_menu():
+    def fetch_all_menus():
+        all_data = {}
+        for name, sqno in config.CAFETERIAS.items():
+            print(f"[*] {name} 데이터 수집 중...")
+            menu = KnuScraper.fetch_single_menu(sqno)
+            if menu:
+                all_data[name] = menu
+        return all_data
+
+    @staticmethod
+    def fetch_single_menu(sqno):
         today = datetime.now()
         monday = today - timedelta(days=today.weekday())
         date_str = monday.strftime('%Y-%m-%d')
-        
-        url = f"{config.BASE_URL}?shop_sqno={config.SHOP_SQNO}&selDate={date_str}"
+        url = f"{config.BASE_URL}?shop_sqno={sqno}&selDate={date_str}"
         
         try:
             response = requests.get(url, headers=config.HEADERS, timeout=10)
             response.encoding = 'utf-8'
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # 요일별 데이터를 담을 딕셔너리 초기화
             new_menu = {day: {} for day in ['월', '화', '수', '목', '금', '토']}
-            
-            # HTML 내의 '중식', '석식' 섹션을 각각 찾음
+            # 중식/석식 섹션을 구분하여 긁어오는 핵심 로직
             sections = soup.select('div.week_table')
             
             for section in sections:
@@ -28,22 +35,17 @@ class KnuScraper:
                 if not title_tag: continue
                 category = title_tag.get_text(strip=True) # "중식" 또는 "석식"
                 
-                # 해당 테이블의 모든 td(요일별 식단) 추출
                 tds = section.select('tbody tr td')
                 days = ['월', '화', '수', '목', '금', '토']
                 
                 for i, td in enumerate(tds):
                     if i < len(days):
+                        # 메뉴 내용이 담긴 p 태그 타겟팅
                         menu_p = td.select_one('li.first p')
                         if menu_p:
                             menu_text = menu_p.get_text("\n", strip=True)
                             new_menu[days[i]][category] = menu_text
-
-            # 데이터가 하나라도 있는지 확인
-            if not any(new_menu[d] for d in new_menu):
-                return None
-
             return new_menu
         except Exception as e:
-            print(f"Scraping Error: {e}")
+            print(f"[!] {sqno} 수집 에러: {e}")
             return None
