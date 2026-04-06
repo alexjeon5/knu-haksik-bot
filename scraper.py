@@ -17,29 +17,32 @@ class KnuScraper:
             response.encoding = 'utf-8'
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            tables = soup.find_all('table')
-            target_table = None
-            for t in tables:
-                t_text = t.get_text()
-                if '월' in t_text and ('분류' in t_text or '중식' in t_text):
-                    target_table = t
-                    break
+            # 요일별 데이터를 담을 딕셔너리 초기화
+            new_menu = {day: {} for day in ['월', '화', '수', '목', '금', '토']}
             
-            if not target_table: return None
+            # HTML 내의 '중식', '석식' 섹션을 각각 찾음
+            sections = soup.select('div.week_table')
+            
+            for section in sections:
+                title_tag = section.select_one('p.title')
+                if not title_tag: continue
+                category = title_tag.get_text(strip=True) # "중식" 또는 "석식"
+                
+                # 해당 테이블의 모든 td(요일별 식단) 추출
+                tds = section.select('tbody tr td')
+                days = ['월', '화', '수', '목', '금', '토']
+                
+                for i, td in enumerate(tds):
+                    if i < len(days):
+                        menu_p = td.select_one('li.first p')
+                        if menu_p:
+                            menu_text = menu_p.get_text("\n", strip=True)
+                            new_menu[days[i]][category] = menu_text
 
-            rows = target_table.find_all('tr')
-            header_cols = rows[0].find_all(['th', 'td'])
-            day_indices = {d: i for i, col in enumerate(header_cols) 
-                           for d in ['월', '화', '수', '목', '금'] if d in col.get_text()}
-            
-            new_menu = {}
-            for r in rows[1:]:
-                cols = r.find_all(['th', 'td'])
-                for day, idx in day_indices.items():
-                    if idx < len(cols):
-                        menu_text = cols[idx].get_text("\n", strip=True)
-                        new_menu[day] = new_menu.get(day, "") + ("\n\n" + menu_text if day in new_menu else menu_text)
-            
+            # 데이터가 하나라도 있는지 확인
+            if not any(new_menu[d] for d in new_menu):
+                return None
+
             return new_menu
         except Exception as e:
             print(f"Scraping Error: {e}")
