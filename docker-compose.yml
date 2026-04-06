@@ -1,0 +1,12 @@
+services:
+  knu-bot:
+    build: .
+    container_name: knu_menu_bot
+    restart: always
+    env_file:
+      - .env
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "3"
