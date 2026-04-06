@@ -27,24 +27,30 @@ class KnuScraper:
             soup = BeautifulSoup(response.text, 'html.parser')
             
             new_menu = {day: {} for day in ['월', '화', '수', '목', '금', '토']}
-            # 중식/석식 섹션을 구분하여 긁어오는 핵심 로직
             sections = soup.select('div.week_table')
             
             for section in sections:
                 title_tag = section.select_one('p.title')
                 if not title_tag: continue
-                category = title_tag.get_text(strip=True) # "중식" 또는 "석식"
+                category = title_tag.get_text(strip=True)
                 
                 tds = section.select('tbody tr td')
                 days = ['월', '화', '수', '목', '금', '토']
                 
                 for i, td in enumerate(tds):
                     if i < len(days):
-                        # 메뉴 내용이 담긴 p 태그 타겟팅
-                        menu_p = td.select_one('li.first p')
-                        if menu_p:
-                            menu_text = menu_p.get_text("\n", strip=True)
-                            new_menu[days[i]][category] = menu_text
+                        # [핵심 수정] li.first p 하나만 찾는 대신, 모든 li 태그를 순회합니다.
+                        menu_list = td.select('ul.menu_im li')
+                        if menu_list:
+                            all_items = []
+                            for li in menu_list:
+                                # 각 메뉴 항목의 텍스트(메뉴명, 가격 등)를 추출
+                                item_text = li.get_text("\n", strip=True)
+                                if item_text:
+                                    all_items.append(item_text)
+                            
+                            # 여러 메뉴가 있을 경우 구분선(---)으로 나누어 저장
+                            new_menu[days[i]][category] = "\n--------------\n".join(all_items)
             return new_menu
         except Exception as e:
             print(f"[!] {sqno} 수집 에러: {e}")
