@@ -1,7 +1,6 @@
-import config
-import handlers
-from scraper import KnuScraper
-# [수정됨] CommandHandler 추가 임포트
+from bot import config
+from bot import handlers
+from bot.scraper import KnuScraper
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
@@ -25,11 +24,9 @@ if __name__ == '__main__':
     
     app = ApplicationBuilder().token(config.TELEGRAM_TOKEN).build()
     
-    # [새로 추가된 부분] /start 와 /help 명령어에 대해 start_handler를 연결합니다.
     app.add_handler(CommandHandler('start', handlers.start_handler))
     app.add_handler(CommandHandler('help', handlers.start_handler))
     
-    # 공식 이름과 모든 별명을 통합
     all_valid_names = list(config.CAFETERIAS.keys())
     for aliases in config.CAFETERIA_ALIASES.values():
         all_valid_names.extend(aliases)

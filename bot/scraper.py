@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-import config
+from bot import config # 수정됨
 
 class KnuScraper:
     @staticmethod

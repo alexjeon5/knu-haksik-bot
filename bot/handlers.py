@@ -2,18 +2,16 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.constants import ParseMode 
 from telegram.ext import ContextTypes
 from datetime import datetime
-import config
-import messages # [추가됨] 분리된 메시지 파일을 불러옵니다.
+from bot import config    # 수정됨
+from bot import messages  # 수정됨
 
 current_menus = {}
 
 # /start 또는 /help 명령어 핸들러
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # 봇을 처음 시작할 때 채팅창 아래에 '급식' 버튼을 기본으로 깔아줍니다.
     keyboard = [["급식"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
-    # [수정됨] messages.py 파일에 있는 WELCOME_MSG 변수를 가져와서 출력합니다.
     await update.message.reply_text(
         messages.WELCOME_MSG, 
         parse_mode=ParseMode.HTML, 
@@ -27,13 +25,11 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     target_cafeteria = None
 
-    # 1. 공식 이름에서 먼저 확인
     for cafe in config.CAFETERIAS.keys():
         if cafe in user_text:
             target_cafeteria = cafe
             break
 
-    # 2. 공식 이름에서 찾지 못했다면 별명 풀에서 확인
     if not target_cafeteria:
         for official_name, aliases in config.CAFETERIA_ALIASES.items():
             for alias in aliases:
@@ -43,7 +39,6 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if target_cafeteria:
                 break
 
-    # '급식' 명령어 처리 (키보드 호출)
     if "급식" in user_text and not target_cafeteria:
         names = list(config.CAFETERIAS.keys())
         keyboard = [names[i:i+2] for i in range(0, len(names), 2)]
@@ -51,7 +46,6 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("조회할 식당을 선택해주세요 (기본: 점심):", reply_markup=reply_markup)
         return
 
-    # 식당 이름(또는 별명)이 인식된 경우 메뉴 출력
     if target_cafeteria:
         is_dinner = "저녁" in user_text
         
