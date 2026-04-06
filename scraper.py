@@ -35,12 +35,17 @@ class KnuScraper:
                 if not title_tag: continue
                 category = title_tag.get_text(strip=True)
                 
-                tds = section.select('tbody tr td')
                 days = ['월', '화', '수', '목', '금', '토']
                 
-                for i, td in enumerate(tds):
-                    if i >= len(days): continue
+                # 요일별로 메뉴 블록을 차곡차곡 모아둘 딕셔너리 준비
+                daily_blocks = {day: [] for day in days}
+                
+                # [수정 핵심] tbody 안의 '모든' tr을 순회하도록 변경하여 여러 줄(뚝배기, 특식 등)을 모두 파싱
+                trs = section.select('tbody tr')
+                for tr in trs:
+                    tds = tr.select('td')
                     
+<<<<<<< HEAD
                     menu_blocks = []
                     current_label = ""
                     
@@ -73,6 +78,44 @@ class KnuScraper:
                     
                     if menu_blocks:
                         new_menu[days[i]][category] = "\n--------------\n".join(menu_blocks)
+=======
+                    for i, td in enumerate(tds):
+                        if i >= len(days): continue
+                        current_day = days[i]
+                        
+                        current_label = ""
+                        
+                        # td 내부의 모든 요소를 순차적으로 분석
+                        for child in td.find_all(recursive=False):
+                            if child.name == 'div' and 'button_m' in child.get('class', []):
+                                current_label = child.get_text(strip=True)
+                            
+                            elif child.name == 'ul' and 'menu_im' in child.get('class', []):
+                                items = []
+                                for li in child.select('li'):
+                                    item_text = li.get_text("\n", strip=True)
+                                    if item_text.startswith("정식"):
+                                        item_text = item_text[2:].strip()
+                                    if item_text:
+                                        items.append(item_text)
+                                
+                                if items:
+                                    header = f"<b>[{current_label}]</b>\n" if current_label else ""
+                                    
+                                    # 개별 메뉴(<li>) 사이사이에 점선 삽입
+                                    item_separator = "\n" + "-" * 25 + "\n"
+                                    daily_blocks[current_day].append(header + item_separator.join(items))
+                                
+                                current_label = ""
+                
+                # 수집된 요일별 블록들을 합쳐서 최종 식단 딕셔너리에 저장
+                for day in days:
+                    if daily_blocks[day]:
+                        # 뚝배기, 특식 등 서로 다른 그룹 사이는 줄바꿈 2번(\n\n)으로 깔끔하게 띄워줌
+                        group_separator = "\n\n" 
+                        new_menu[day][category] = group_separator.join(daily_blocks[day])
+                    
+>>>>>>> c8e66f5 (식단 크롤링 로직 개선: 모든 tr을 순회하여 메뉴 블록 파싱 방식 수정 및 점선 구분선 추가)
             
             return new_menu
         except Exception as e:
