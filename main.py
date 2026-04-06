@@ -10,7 +10,6 @@ def update_menu_task():
     print(f"[*] {datetime.now()} 전체 식당 업데이트 시작")
     all_menus = KnuScraper.fetch_all_menus()
     if all_menus:
-        # handlers의 전역 변수와 이름을 일치시킴 (복수형)
         handlers.current_menus = all_menus
         print(f"[*] {len(all_menus)}개 식당 데이터 업데이트 완료")
     else:
@@ -27,10 +26,11 @@ if __name__ == '__main__':
     
     app = ApplicationBuilder().token(config.TELEGRAM_TOKEN).build()
     
-    # 식당 이름들을 포함하는 정규표현식 패턴 생성
-    cafeteria_pattern = f"^({'|'.join(config.CAFETERIAS.keys())})$"
+    # 식당 이름들을 포함하는 정규표현식 패턴 생성 ('저녁 ' 수식어를 선택적으로 허용)
+    cafeteria_names = '|'.join(config.CAFETERIAS.keys())
+    cafeteria_pattern = f"^(저녁\s*)?({cafeteria_names})$"
     
-    # 필터 설정: '급식' 단어 포함 또는 식당 이름과 정확히 일치
+    # 필터 설정: '급식' 단어 포함 또는 정규식 패턴과 일치
     cafeteria_filter = filters.TEXT & (filters.Regex('급식') | filters.Regex(cafeteria_pattern))
     
     app.add_handler(MessageHandler(cafeteria_filter, handlers.menu_handler))
