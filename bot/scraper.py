@@ -15,10 +15,12 @@ class KnuScraper:
         return all_data
 
     @staticmethod
-    def fetch_single_menu(sqno):
-        today = datetime.now()
-        monday = today - timedelta(days=today.weekday())
-        date_str = monday.strftime('%Y-%m-%d')
+    def fetch_single_menu(sqno, date_str=None): # date_str 매개변수 추가
+        if not date_str: # 날짜가 지정되지 않았다면 기존처럼 이번 주 월요일 계산
+            today = datetime.now()
+            monday = today - timedelta(days=today.weekday())
+            date_str = monday.strftime('%Y-%m-%d')
+            
         url = f"{config.BASE_URL}?shop_sqno={sqno}&selDate={date_str}"
         
         try:

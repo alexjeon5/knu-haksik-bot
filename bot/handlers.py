@@ -1,7 +1,7 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.constants import ParseMode 
 from telegram.ext import ContextTypes
-from datetime import datetime
+from datetime import datetime, timedelta  # timedelta 추가
 from bot import config    # 수정됨
 from bot import messages  # 수정됨
 
@@ -54,23 +54,32 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_tomorrow = "내일" in user_text # '내일' 키워드 확인
         
         weekdays = ["월", "화", "수", "목", "금", "토", "일"]
+        now = datetime.now() 
         today_idx = datetime.now().weekday()
         
-        # 날짜 계산 로직 추가
-        if is_tomorrow:
-            # 금(4), 토(5), 일(6)에 '내일' 요청 시 월요일(0) 식단으로 설정
-            if today_idx >= 4:
-                target_idx = 0
-            else:
-                target_idx = today_idx + 1
-            day_label = "내일"
-        else:
-            target_idx = today_idx
-            day_label = "오늘"
+        if is_tomorrow and today_idx >= 4: # 금, 토, 일요일에 '내일'을 요청한 경우
+            target_day = "월"
+            day_label = "다음 주 월"
+            
+            # 다음 주 월요일 날짜 계산
+            next_monday = now + timedelta(days=(7 - today_idx))
+            monday_str = next_monday.strftime('%Y-%m-%d')
+            
+            # scraper를 통해 다음 주 식단을 실시간으로 가져옴
+            from bot.scraper import KnuScraper
+            sqno = config.CAFETERIAS[target_cafeteria]
+            next_week_data = KnuScraper.fetch_single_menu(sqno, monday_str)
+            
+            day_data = next_week_data.get('월', {}) if next_week_data else {}
 
-        # '내일' 요청이 아닌데 오늘이 일요일(6)인 경우에만 휴무 안내 (기존 로직 보완)
-        if not is_tomorrow and today_idx >= 6:
-            await update.message.reply_text("오늘은 일요일입니다. 주말엔 휴무입니다! 🍕")
+        else: # 평일이거나 오늘 식단을 묻는 경우 (기존 로직)
+            target_idx = today_idx + 1 if is_tomorrow else today_idx
+            target_day = weekdays[target_idx]
+            day_label = "내일" if is_tomorrow else "오늘"
+
+        # '내일' 요청이 아닌데 오늘이 주말(5, 6)인 경우에만 휴무 안내
+        if not is_tomorrow and today_idx >= 5:
+            await update.message.reply_text("오늘은 주말입니다. 주말엔 휴무입니다! 🍕")
             return
 
         target_day = weekdays[target_idx]
