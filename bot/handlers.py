@@ -53,6 +53,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_tomorrow = "내일" in user_text
         
         now = datetime.now() 
+        # now = datetime(2026, 3, 24, 12, 0) # 지정 날짜로 테스트
         today_idx = now.weekday()
         weekdays = ["월", "화", "수", "목", "금", "토", "일"]
 
@@ -60,10 +61,10 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         day_label = ""
         target_day = ""
 
-        # [수정된 핵심 로직] 상황별 데이터 조회 방식 분기
+        # 상황별 데이터 조회 방식 분기
         if is_tomorrow and today_idx >= 4: # 금, 토, 일요일에 '내일'을 요청한 경우
             target_day = "월"
-            day_label = "다음 주 월"
+            day_label = "다음 주"
             
             # 다음 주 월요일 날짜 계산 및 실시간 크롤링
             next_monday = now + timedelta(days=(7 - today_idx))
@@ -75,7 +76,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             day_data = next_week_data.get('월', {}) if next_week_data else {}
 
         elif not is_tomorrow and today_idx >= 5: # 토, 일요일에 '오늘' 식단을 요청한 경우
-            await update.message.reply_text("오늘은 주말입니다. 주말엔 휴무입니다! 🍕")
+            await update.message.reply_text("오늘은 주말입니다. 주말엔 휴무입니다! 🍕\n\"내일 + 식당 이름\"을 입력해 다음주 월요일 식단을 확인하세요.")
             return
 
         else: # 평일이거나 이번 주 내의 내일 식단인 경우 (메모리 캐시 사용)
