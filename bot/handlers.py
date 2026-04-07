@@ -115,46 +115,29 @@ async def menu_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     is_dinner = "dinner_" in data
     target_cafeteria = data.replace("menu_", "").replace("tomorrow_", "").replace("dinner_", "")
 
-    now = datetime.now()
-    today_idx = now.weekday()
-    weekdays = ["월", "화", "수", "목", "금", "토", "일"]
+    # 🌟 [변경] utils를 사용하여 날짜 정보 획득
+    date_info = utils.get_target_date_info(is_tomorrow)
+
+    if date_info["is_weekend"] and not is_tomorrow:
+        await query.edit_message_text("오늘은 주말 휴무입니다. '내일' 식단을 확인하세요.")
+        return
 
     day_data = {}
-    day_label = "오늘"
-    target_day = weekdays[today_idx]
-
-    # 날짜 및 데이터 로드 로직 (menu_handler의 로직과 동기화)
-    if is_tomorrow:
-        if today_idx >= 4: # 금, 토, 일
-            target_day = "월"
-            day_label = "다음 주"
-            # 다음 주 월요일 데이터 크롤링 (current_menus에 없을 경우 대비)
-            from bot.scraper import KnuScraper
-            next_monday = now + timedelta(days=(7 - today_idx))
-            monday_str = next_monday.strftime('%Y-%m-%d')
-            next_week_data = KnuScraper.fetch_single_menu(config.CAFETERIAS[target_cafeteria], monday_str)
-            day_data = next_week_data.get('월', {}) if next_week_data else {}
-        else:
-            target_day = weekdays[today_idx + 1]
-            day_label = "내일"
-            day_data = current_menus.get(target_cafeteria, {}).get(target_day, {})
+    if date_info["is_next_week"]:
+        from bot.scraper import KnuScraper
+        next_monday = date_info["now"] + timedelta(days=(7 - date_info["today_idx"]))
+        next_week_data = KnuScraper.fetch_single_menu(config.CAFETERIAS[target_cafeteria], next_monday.strftime('%Y-%m-%d'))
+        day_data = next_week_data.get('월', {}) if next_week_data else {}
     else:
-        if today_idx >= 5: # 주말 예외 처리
-            await query.edit_message_text("오늘은 주말 휴무입니다. '내일' 식단을 확인하세요.")
-            return
-        day_data = current_menus.get(target_cafeteria, {}).get(target_day, {})
+        day_data = current_menus.get(target_cafeteria, {}).get(date_info["target_day"], {})
 
     if day_data:
         meal_type = '석식' if is_dinner else '중식'
-        meal_title = "🌙 <b>[석식]</b>" if is_dinner else "☀️ <b>[중식]</b>"
-        meal_content = day_data.get(meal_type, '정보가 없습니다.')
-        
-        msg = (
-            f"🍴 <b>{day_label}({target_day}) [{target_cafeteria}] 식단</b>\n"
-            f"━━━━━━━━━━━━━━\n\n"
-            f"{meal_title}\n{meal_content}\n\n"
-            f"━━━━━━━━━━━━━━"
+        # 🌟 [변경] utils.format_meal_message를 사용하여 메시지 생성
+        msg = utils.format_meal_message(
+            date_info["day_label"], date_info["target_day"], 
+            target_cafeteria, meal_type, day_data.get(meal_type, '정보가 없습니다.')
         )
         await query.edit_message_text(msg, parse_mode=ParseMode.HTML)
     else:
-        await query.edit_message_text(f"{target_cafeteria}의 {target_day}요일 식단 정보를 불러오지 못했습니다.")
+        await query.edit_message_text(f"{target_cafeteria}의 {date_info['target_day']}요일 식단 정보를 불러오지 못했습니다.")
