@@ -1,5 +1,6 @@
 from bot import config
 from bot import handlers
+from bot.reservation import get_conv_handler  # <--- 추가된 임포트
 from bot.scraper import KnuScraper
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -27,17 +28,15 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler('start', handlers.start_handler))
     app.add_handler(CommandHandler('help', handlers.start_handler))
     
+    app.add_handler(get_conv_handler())
+    
     all_valid_names = list(config.CAFETERIAS.keys())
     for aliases in config.CAFETERIA_ALIASES.values():
         all_valid_names.extend(aliases)
         
     cafeteria_names_str = '|'.join(all_valid_names)
-    # main.py 수정된 부분
 
-    # 기존: cafeteria_pattern = f"^(저녁\s*)?({cafeteria_names_str})$"
-    # 수정: '내일' 키워드가 앞에 올 수 있도록 추가
     cafeteria_pattern = f"^(내일\s*)?(저녁\s*)?({cafeteria_names_str})$"
-    
     cafeteria_filter = filters.TEXT & (filters.Regex('급식') | filters.Regex(cafeteria_pattern))
     
     app.add_handler(MessageHandler(cafeteria_filter, handlers.menu_handler))
