@@ -315,20 +315,18 @@ async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
     chat_id = job.chat_id
     cafeterias = job.data
     
-    print(f"[*] ⏰ 예약 발송 스케줄러 작동됨! (채팅방: {chat_id}, 대상 식당: {cafeterias})")
-    
-    now = dt.datetime.now(ZoneInfo('Asia/Seoul'))
-    day_str = ["월", "화", "수", "목", "금", "토", "일"][now.weekday()]
+    # 🌟 [변경] 유틸리티를 사용하여 오늘 요일 정보를 가져옵니다.
+    from bot import utils
+    date_info = utils.get_target_date_info(is_tomorrow=False)
     
     for cafe in cafeterias:
-        cafe_data = handlers.current_menus.get(cafe, {}).get(day_str, {})
+        cafe_data = handlers.current_menus.get(cafe, {}).get(date_info["target_day"], {})
+        # 예약 알림은 기본적으로 중식 메뉴를 보낸다고 가정 (필요시 수정 가능)
         meal_content = cafe_data.get('중식', '오늘은 등록된 식단 정보가 없습니다. (휴무 또는 업데이트 전)')
         
-        msg = (
-            f"🔔 <b>[예약 알림] 오늘({day_str}) {cafe} 식단</b>\n"
-            f"━━━━━━━━━━━━━━\n\n"
-            f"☀️ <b>[중식]</b>\n{meal_content}\n\n"
-            f"━━━━━━━━━━━━━━"
+        # 🌟 [변경] 공통 메시지 포맷팅 함수 사용
+        msg = utils.format_meal_message(
+            "🔔 예약 알림", date_info["target_day"], cafe, '중식', meal_content
         )
         
         from telegram.constants import ParseMode

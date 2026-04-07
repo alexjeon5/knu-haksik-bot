@@ -29,3 +29,16 @@ CAFETERIA_ALIASES = {
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
 }
+
+def find_cafeteria(text):
+    """텍스트에서 공식 식당 이름 또는 별칭을 찾아 반환합니다."""
+    # 1. 공식 명칭 매칭
+    for cafe in CAFETERIAS.keys():
+        if cafe in text:
+            return cafe
+    # 2. 별칭 매칭
+    for official_name, aliases in CAFETERIA_ALIASES.items():
+        for alias in aliases:
+            if alias in text:
+                return official_name
+    return None
