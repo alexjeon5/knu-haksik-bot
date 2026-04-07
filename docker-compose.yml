@@ -2,11 +2,13 @@ services:
   knu-bot:
     build: .
     container_name: knu_menu_bot
-    restart: always
+    restart: unless-stopped
     environment:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - PYTHONUNBUFFERED=1
       - TZ=Asia/Seoul
+    volumes:
+      - ./reservations.json:/app/reservations.json
     logging:
       driver: "json-file"
       options:
