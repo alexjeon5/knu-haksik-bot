@@ -8,7 +8,7 @@ services:
       - PYTHONUNBUFFERED=1
       - TZ=Asia/Seoul
     volumes:
-      - ./reservations.json:/app/reservations.json
+      - ./data:/app/data
     logging:
       driver: "json-file"
       options:
