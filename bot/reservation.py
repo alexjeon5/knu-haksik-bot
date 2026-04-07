@@ -157,7 +157,7 @@ async def handle_cafeterias(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         await query.edit_message_text(
             f"⏰ <b>알림을 받을 시간을 입력해주세요.</b>\n"
-            f"형식: <code>HH:MM</code> (예: <code>08:30</code>)\n\n"
+            f"24시간 형식으로 입력해주세요. (예: <code>08:30</code>)\n\n"
             f"현재 설정된 시간: <b>{res['time']}</b>\n\n"
             f"<i>(시간을 변경하지 않고 그대로 저장하려면 '유지'라고 입력하세요.)</i>",
             parse_mode="HTML"
