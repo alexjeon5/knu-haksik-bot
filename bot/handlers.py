@@ -18,13 +18,15 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-# 메뉴 출력 핸들러
+# bot/handlers.py 수정된 부분
+
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
     user_text = update.message.text.strip()
 
     target_cafeteria = None
 
+    # 식당 이름 및 별명 매칭 로직 (기존 유지)
     for cafe in config.CAFETERIAS.keys():
         if cafe in user_text:
             target_cafeteria = cafe
@@ -39,6 +41,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if target_cafeteria:
                 break
 
+    # '급식' 선택 버튼 처리 (기존 유지)
     if "급식" in user_text and not target_cafeteria:
         names = list(config.CAFETERIAS.keys())
         keyboard = [names[i:i+2] for i in range(0, len(names), 2)]
@@ -48,15 +51,29 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if target_cafeteria:
         is_dinner = "저녁" in user_text
+        is_tomorrow = "내일" in user_text # '내일' 키워드 확인
         
         weekdays = ["월", "화", "수", "목", "금", "토", "일"]
         today_idx = datetime.now().weekday()
-        target_day = weekdays[today_idx]
+        
+        # 날짜 계산 로직 추가
+        if is_tomorrow:
+            # 금(4), 토(5), 일(6)에 '내일' 요청 시 월요일(0) 식단으로 설정
+            if today_idx >= 4:
+                target_idx = 0
+            else:
+                target_idx = today_idx + 1
+            day_label = "내일"
+        else:
+            target_idx = today_idx
+            day_label = "오늘"
 
-        if today_idx >= 6:
+        # '내일' 요청이 아닌데 오늘이 일요일(6)인 경우에만 휴무 안내 (기존 로직 보완)
+        if not is_tomorrow and today_idx >= 6:
             await update.message.reply_text("오늘은 일요일입니다. 주말엔 휴무입니다! 🍕")
             return
 
+        target_day = weekdays[target_idx]
         cafeteria_data = current_menus.get(target_cafeteria, {})
         day_data = cafeteria_data.get(target_day, {})
 
@@ -68,8 +85,9 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 meal_data = day_data.get('중식', '정보가 없습니다.')
                 meal_title = "☀️ <b>[중식]</b>"
             
+            # 메시지 상단에 '오늘' 또는 '내일' 표시 추가
             msg = (
-                f"🍴 <b>오늘({target_day}) [{target_cafeteria}] 식단</b>\n"
+                f"🍴 <b>{day_label}({target_day}) [{target_cafeteria}] 식단</b>\n"
                 f"━━━━━━━━━━━━━━\n\n"
                 f"{meal_title}\n{meal_data}\n\n"
                 f"━━━━━━━━━━━━━━"
