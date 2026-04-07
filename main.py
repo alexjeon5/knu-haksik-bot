@@ -32,7 +32,11 @@ if __name__ == '__main__':
         all_valid_names.extend(aliases)
         
     cafeteria_names_str = '|'.join(all_valid_names)
-    cafeteria_pattern = f"^(저녁\s*)?({cafeteria_names_str})$"
+    # main.py 수정된 부분
+
+    # 기존: cafeteria_pattern = f"^(저녁\s*)?({cafeteria_names_str})$"
+    # 수정: '내일' 키워드가 앞에 올 수 있도록 추가
+    cafeteria_pattern = f"^(내일\s*)?(저녁\s*)?({cafeteria_names_str})$"
     
     cafeteria_filter = filters.TEXT & (filters.Regex('급식') | filters.Regex(cafeteria_pattern))
     
