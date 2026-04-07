@@ -1,6 +1,5 @@
 from bot import config
 from bot import handlers
-# --- 추가: restore_reservations 가져오기 ---
 from bot.reservation import get_conv_handler, restore_reservations
 from bot.scraper import KnuScraper
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
@@ -43,9 +42,17 @@ if __name__ == '__main__':
         
     cafeteria_names_str = '|'.join(all_valid_names)
 
-    # 패턴 맨 앞에 '/?' 를 추가하여 슬래시(/) 허용
-    cafeteria_pattern = f"^/?(내일\s*)?(저녁\s*)?({cafeteria_names_str})$"
-    cafeteria_filter = filters.TEXT & (filters.Regex(r'^/?(저녁\s*)?학식$') | filters.Regex(cafeteria_pattern))
+    # 패턴 맨 앞에 '/?' 를 추가하여 슬래시(/) 허용 및 '점심' 키워드 추가
+    cafeteria_pattern = f"^/?(내일\s*)?((저녁|점심)\s*)?({cafeteria_names_str})$"
+
+    # '학식' 키워드 없이 '점심'만 입력하거나 '내일 점심'을 입력해도 동작하도록 필터 확장
+    general_filter = (
+        filters.Regex(r'^/?(내일\s*)?((저녁|점심)\s*)?학식$') | 
+        filters.Regex(r'^/?(내일\s*)?(저녁|점심)$') | 
+        filters.Regex(r'^/?내일$')
+    )
+
+    cafeteria_filter = filters.TEXT & (general_filter | filters.Regex(cafeteria_pattern))
     
     app.add_handler(MessageHandler(cafeteria_filter, handlers.menu_handler))
     
