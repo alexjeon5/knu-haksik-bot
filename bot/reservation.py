@@ -53,13 +53,22 @@ async def handle_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data == "delete":
         chat_id = update.effective_chat.id
+        # 1. 등록된 알림 스케줄(Job) 삭제
         jobs = context.job_queue.get_jobs_by_name(f"res_{chat_id}")
         for job in jobs:
             job.schedule_removal()
-        await query.edit_message_text("❌ 예약 알림이 성공적으로 취소되었습니다.")
+        
+        # 2. 유저의 예약 설정 데이터 초기화
+        if 'reservation' in context.user_data:
+            del context.user_data['reservation']
+            print(f"[*] 🗑 {chat_id} 유저의 예약 설정값이 초기화되었습니다.")
+            
+        await query.edit_message_text("❌ 예약 알림이 취소되었으며, 모든 설정값이 초기값으로 돌아갔습니다.")
         return ConversationHandler.END
         
     elif data in ["create", "edit"]:
+        # 'edit'을 누르면 기존 값을 유지하지만, 'delete' 후 'create'를 하면 
+        # 위에서 데이터를 지웠기 때문에 get_user_res()가 다시 기본값을 생성합니다.
         res = get_user_res(context)
         keyboard = build_days_keyboard(res)
         await query.edit_message_text(
@@ -174,12 +183,15 @@ async def handle_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     # 새 작업 스케줄링
     hour, minute = map(int, res['time'].split(':'))
+    
     # 서버 환경(Docker)이나 로컬과 무관하게 KST(한국 시간) 기준으로 알림 발송
+    from datetime import time
+    from zoneinfo import ZoneInfo
     t = time(hour=hour, minute=minute, tzinfo=ZoneInfo('Asia/Seoul'))
     
     context.job_queue.run_daily(
         send_res_notification,
-        time=t,
+        t,
         days=tuple(res['days']),
         chat_id=chat_id,
         name=f"res_{chat_id}",
@@ -206,14 +218,17 @@ async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
     print(f"[*] ⏰ 예약 발송 스케줄러 작동됨! (채팅방: {chat_id}, 대상 식당: {cafeterias})")
     
     import datetime as dt
+    from zoneinfo import ZoneInfo
+    from telegram.constants import ParseMode
+    
     now = dt.datetime.now(ZoneInfo('Asia/Seoul'))
     day_str = ["월", "화", "수", "목", "금", "토", "일"][now.weekday()]
     
-    messages_to_send = []
+    # 식당별로 순회하며 바로바로 메시지를 전송하고 로그를 찍습니다.
     for cafe in cafeterias:
         cafe_data = handlers.current_menus.get(cafe, {}).get(day_str, {})
         
-        # 데이터가 없어도 알림이 무조건 가도록 조건문 제거 및 기본값 설정
+        # 데이터가 없을 때의 기본 메시지
         meal_content = cafe_data.get('중식', '오늘은 등록된 식단 정보가 없습니다. (휴무 또는 업데이트 전)')
         
         msg = (
@@ -222,19 +237,12 @@ async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
             f"☀️ <b>[중식]</b>\n{meal_content}\n\n"
             f"━━━━━━━━━━━━━━"
         )
-        messages_to_send.append(msg)
-            
-    for m in messages_to_send:
-        from telegram.constants import ParseMode
+        
         try:
-            await context.bot.send_message(chat_id=chat_id, text=m, parse_mode=ParseMode.HTML)
-            print(f"[*] ✅ {cafe} 발송 완료!")
+            await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.HTML)
+            print(f"[*] ✅ {cafe} 발송 완료!")  # 이제 정상적으로 각 식당 이름이 찍힙니다!
         except Exception as e:
-            print(f"[!] ❌ 메시지 발송 실패: {e}")
-            
-    for m in messages_to_send:
-        from telegram.constants import ParseMode
-        await context.bot.send_message(chat_id=chat_id, text=m, parse_mode=ParseMode.HTML)
+            print(f"[!] ❌ {cafe} 메시지 발송 실패: {e}")
         
 def get_conv_handler():
     """메인 파일에서 등록할 ConversationHandler 반환"""
