@@ -203,6 +203,8 @@ async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
     chat_id = job.chat_id
     cafeterias = job.data
     
+    print(f"[*] ⏰ 예약 발송 스케줄러 작동됨! (채팅방: {chat_id}, 대상 식당: {cafeterias})")
+    
     import datetime as dt
     now = dt.datetime.now(ZoneInfo('Asia/Seoul'))
     day_str = ["월", "화", "수", "목", "금", "토", "일"][now.weekday()]
@@ -210,15 +212,25 @@ async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
     messages_to_send = []
     for cafe in cafeterias:
         cafe_data = handlers.current_menus.get(cafe, {}).get(day_str, {})
-        if cafe_data:
-            meal_content = cafe_data.get('중식', '식단 정보가 업데이트되지 않았거나 정보가 없습니다.')
-            msg = (
-                f"🔔 <b>[예약 알림] 오늘({day_str}) {cafe} 식단</b>\n"
-                f"━━━━━━━━━━━━━━\n\n"
-                f"☀️ <b>[중식]</b>\n{meal_content}\n\n"
-                f"━━━━━━━━━━━━━━"
-            )
-            messages_to_send.append(msg)
+        
+        # 데이터가 없어도 알림이 무조건 가도록 조건문 제거 및 기본값 설정
+        meal_content = cafe_data.get('중식', '오늘은 등록된 식단 정보가 없습니다. (휴무 또는 업데이트 전)')
+        
+        msg = (
+            f"🔔 <b>[예약 알림] 오늘({day_str}) {cafe} 식단</b>\n"
+            f"━━━━━━━━━━━━━━\n\n"
+            f"☀️ <b>[중식]</b>\n{meal_content}\n\n"
+            f"━━━━━━━━━━━━━━"
+        )
+        messages_to_send.append(msg)
+            
+    for m in messages_to_send:
+        from telegram.constants import ParseMode
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=m, parse_mode=ParseMode.HTML)
+            print(f"[*] ✅ {cafe} 발송 완료!")
+        except Exception as e:
+            print(f"[!] ❌ 메시지 발송 실패: {e}")
             
     for m in messages_to_send:
         from telegram.constants import ParseMode
@@ -227,7 +239,8 @@ async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
 def get_conv_handler():
     """메인 파일에서 등록할 ConversationHandler 반환"""
     return ConversationHandler(
-        entry_points=[CommandHandler('예약', res_start)],
+        # CommandHandler('예약', res_start) 대신 MessageHandler와 정규식을 사용합니다.
+        entry_points=[MessageHandler(filters.Regex(r'^/?예약$'), res_start)],
         states={
             SELECT_ACTION: [CallbackQueryHandler(handle_action)],
             SELECT_DAYS: [CallbackQueryHandler(handle_days)],

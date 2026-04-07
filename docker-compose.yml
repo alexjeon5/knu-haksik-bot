@@ -2,7 +2,7 @@ services:
   knu-bot:
     build: .
     container_name: knu_menu_bot
-    restart: always
+    restart: unless-stopped
     environment:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - PYTHONUNBUFFERED=1

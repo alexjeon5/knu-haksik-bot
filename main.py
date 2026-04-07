@@ -29,6 +29,7 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler('help', handlers.start_handler))
     
     app.add_handler(get_conv_handler())
+    print("[*] 예약 기능 핸들러가 정상적으로 등록(활성화) 되었습니다.")
     
     all_valid_names = list(config.CAFETERIAS.keys())
     for aliases in config.CAFETERIA_ALIASES.values():
