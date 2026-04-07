@@ -1,4 +1,7 @@
 import re
+import json
+import os
+import datetime as dt
 from datetime import time
 from zoneinfo import ZoneInfo
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -6,19 +9,79 @@ from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, Call
 from bot import config
 import bot.handlers as handlers
 
+# JSON 백업 파일 경로 설정
+RES_FILE = 'reservations.json'
+
 # 대화 상태(State) 정의
 SELECT_ACTION, SELECT_DAYS, SELECT_CAFETERIA, SELECT_TIME = range(4)
-
 DAYS_MAP = {0: '월', 1: '화', 2: '수', 3: '목', 4: '금'}
 
-def get_user_res(context: ContextTypes.DEFAULT_TYPE):
-    """유저의 예약 기본값을 가져오거나 설정합니다."""
+# --- JSON 백업 관리 함수 ---
+def load_reservations_from_file():
+    """JSON 파일에서 예약 데이터를 불러옵니다."""
+    if os.path.exists(RES_FILE):
+        # 🌟 추가된 부분: 파일 크기가 0바이트면 빈 딕셔너리 반환
+        if os.path.getsize(RES_FILE) == 0:
+            return {}
+            
+        try:
+            with open(RES_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[!] JSON 예약 데이터 로드 실패: {e}")
+    return {}
+
+def save_reservation_to_file(chat_id, res_data):
+    """특정 유저의 예약 데이터를 JSON 파일에 저장합니다."""
+    data = load_reservations_from_file()
+    data[str(chat_id)] = res_data
+    with open(RES_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+def delete_reservation_from_file(chat_id):
+    """특정 유저의 예약 데이터를 JSON 파일에서 삭제합니다."""
+    data = load_reservations_from_file()
+    if str(chat_id) in data:
+        del data[str(chat_id)]
+        with open(RES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+def restore_reservations(app):
+    """봇 실행 시 JSON 파일의 데이터를 읽어 스케줄러에 등록합니다."""
+    data = load_reservations_from_file()
+    count = 0
+    for chat_id_str, res in data.items():
+        chat_id = int(chat_id_str)
+        hour, minute = map(int, res['time'].split(':'))
+        t = time(hour=hour, minute=minute, tzinfo=ZoneInfo('Asia/Seoul'))
+        
+        app.job_queue.run_daily(
+            send_res_notification,
+            t,
+            days=tuple(res['days']),
+            chat_id=chat_id,
+            name=f"res_{chat_id}",
+            data=res['cafeterias']
+        )
+        count += 1
+    if count > 0:
+        print(f"[*] 💾 JSON 백업 파일에서 {count}개의 예약 데이터를 성공적으로 복구했습니다.")
+# ---------------------------
+
+def get_user_res(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    """유저의 예약 기본값을 가져오거나 설정합니다. (JSON 연동)"""
     if 'reservation' not in context.user_data:
-        context.user_data['reservation'] = {
-            'days': [0, 1, 2, 3, 4], # 기본값: 월~금
-            'cafeterias': ['정보센터식당'], # 기본값: 정보센터식당
-            'time': '08:00' # 기본값: 오전 8시
-        }
+        saved_data = load_reservations_from_file()
+        if str(chat_id) in saved_data:
+            # 파일에 저장된 데이터가 있으면 불러오기
+            context.user_data['reservation'] = saved_data[str(chat_id)].copy()
+        else:
+            # 없으면 초기 기본값 생성
+            context.user_data['reservation'] = {
+                'days': [0, 1, 2, 3, 4], # 기본값: 월~금
+                'cafeterias': ['정보센터식당'], # 기본값: 정보센터식당
+                'time': '08:00' # 기본값: 오전 8시
+            }
     return context.user_data['reservation']
 
 def format_res_info(res):
@@ -29,11 +92,10 @@ def format_res_info(res):
 async def res_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/예약 명령어 입력 시 호출되는 함수"""
     chat_id = update.effective_chat.id
-    # 현재 유저에게 등록된 예약 스케줄이 있는지 확인
     jobs = context.job_queue.get_jobs_by_name(f"res_{chat_id}")
     
     if jobs:
-        res = context.user_data.get('reservation', get_user_res(context))
+        res = context.user_data.get('reservation', get_user_res(context, chat_id))
         text = f"✅ <b>현재 알림이 설정되어 있습니다.</b>\n\n{format_res_info(res)}\n\n무엇을 하시겠습니까?"
         keyboard = [
             [InlineKeyboardButton("수정하기", callback_data="edit"), InlineKeyboardButton("취소하기", callback_data="delete")]
@@ -50,26 +112,25 @@ async def handle_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
+    chat_id = update.effective_chat.id
     
     if data == "delete":
-        chat_id = update.effective_chat.id
-        # 1. 등록된 알림 스케줄(Job) 삭제
+        # 1. 등록된 알림 스케줄 삭제
         jobs = context.job_queue.get_jobs_by_name(f"res_{chat_id}")
         for job in jobs:
             job.schedule_removal()
         
-        # 2. 유저의 예약 설정 데이터 초기화
+        # 2. 메모리 및 JSON 파일에서 데이터 삭제
         if 'reservation' in context.user_data:
             del context.user_data['reservation']
-            print(f"[*] 🗑 {chat_id} 유저의 예약 설정값이 초기화되었습니다.")
+        delete_reservation_from_file(chat_id)
+        print(f"[*] 🗑 {chat_id} 유저의 예약 설정값이 초기화 및 삭제되었습니다.")
             
         await query.edit_message_text("❌ 예약 알림이 취소되었으며, 모든 설정값이 초기값으로 돌아갔습니다.")
         return ConversationHandler.END
         
     elif data in ["create", "edit"]:
-        # 'edit'을 누르면 기존 값을 유지하지만, 'delete' 후 'create'를 하면 
-        # 위에서 데이터를 지웠기 때문에 get_user_res()가 다시 기본값을 생성합니다.
-        res = get_user_res(context)
+        res = get_user_res(context, chat_id)
         keyboard = build_days_keyboard(res)
         await query.edit_message_text(
             "📅 <b>알림을 받을 요일을 선택해주세요.</b> (중복 선택 가능)\n\n설정이 끝나면 [다음] 버튼을 눌러주세요.", 
@@ -92,7 +153,8 @@ async def handle_days(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
-    res = get_user_res(context)
+    chat_id = update.effective_chat.id
+    res = get_user_res(context, chat_id)
     
     if data.startswith("day_"):
         d_int = int(data.split("_")[1])
@@ -133,7 +195,8 @@ async def handle_cafeterias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
-    res = get_user_res(context)
+    chat_id = update.effective_chat.id
+    res = get_user_res(context, chat_id)
     
     if data.startswith("cafe_"):
         cafe = data.split("_")[1]
@@ -166,7 +229,8 @@ async def handle_cafeterias(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    res = get_user_res(context)
+    chat_id = update.effective_chat.id
+    res = get_user_res(context, chat_id)
     
     if text != "유지":
         match = re.match(r"^([01]?[0-9]|2[0-3]):([0-5][0-9])$", text)
@@ -175,18 +239,13 @@ async def handle_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return SELECT_TIME
         res['time'] = f"{int(match.group(1)):02d}:{int(match.group(2)):02d}"
         
-    # 기존에 등록된 스케줄이 있다면 삭제
-    chat_id = update.effective_chat.id
+    # 기존 스케줄 삭제
     jobs = context.job_queue.get_jobs_by_name(f"res_{chat_id}")
     for job in jobs:
         job.schedule_removal()
         
     # 새 작업 스케줄링
     hour, minute = map(int, res['time'].split(':'))
-    
-    # 서버 환경(Docker)이나 로컬과 무관하게 KST(한국 시간) 기준으로 알림 발송
-    from datetime import time
-    from zoneinfo import ZoneInfo
     t = time(hour=hour, minute=minute, tzinfo=ZoneInfo('Asia/Seoul'))
     
     context.job_queue.run_daily(
@@ -197,6 +256,9 @@ async def handle_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name=f"res_{chat_id}",
         data=res['cafeterias']
     )
+    
+    # JSON 파일에 최종 저장
+    save_reservation_to_file(chat_id, res)
     
     await update.message.reply_text(
         f"🎉 <b>예약 알림 설정이 완료되었습니다!</b>\n\n{format_res_info(res)}",
@@ -217,18 +279,11 @@ async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
     
     print(f"[*] ⏰ 예약 발송 스케줄러 작동됨! (채팅방: {chat_id}, 대상 식당: {cafeterias})")
     
-    import datetime as dt
-    from zoneinfo import ZoneInfo
-    from telegram.constants import ParseMode
-    
     now = dt.datetime.now(ZoneInfo('Asia/Seoul'))
     day_str = ["월", "화", "수", "목", "금", "토", "일"][now.weekday()]
     
-    # 식당별로 순회하며 바로바로 메시지를 전송하고 로그를 찍습니다.
     for cafe in cafeterias:
         cafe_data = handlers.current_menus.get(cafe, {}).get(day_str, {})
-        
-        # 데이터가 없을 때의 기본 메시지
         meal_content = cafe_data.get('중식', '오늘은 등록된 식단 정보가 없습니다. (휴무 또는 업데이트 전)')
         
         msg = (
@@ -238,16 +293,16 @@ async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
             f"━━━━━━━━━━━━━━"
         )
         
+        from telegram.constants import ParseMode
         try:
             await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.HTML)
-            print(f"[*] ✅ {cafe} 발송 완료!")  # 이제 정상적으로 각 식당 이름이 찍힙니다!
+            print(f"[*] ✅ {cafe} 발송 완료!")
         except Exception as e:
             print(f"[!] ❌ {cafe} 메시지 발송 실패: {e}")
         
 def get_conv_handler():
     """메인 파일에서 등록할 ConversationHandler 반환"""
     return ConversationHandler(
-        # CommandHandler('예약', res_start) 대신 MessageHandler와 정규식을 사용합니다.
         entry_points=[MessageHandler(filters.Regex(r'^/?예약$'), res_start)],
         states={
             SELECT_ACTION: [CallbackQueryHandler(handle_action)],

@@ -1,6 +1,7 @@
 from bot import config
 from bot import handlers
-from bot.reservation import get_conv_handler  # <--- 추가된 임포트
+# --- 추가: restore_reservations 가져오기 ---
+from bot.reservation import get_conv_handler, restore_reservations
 from bot.scraper import KnuScraper
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -24,6 +25,8 @@ if __name__ == '__main__':
     scheduler.start()
     
     app = ApplicationBuilder().token(config.TELEGRAM_TOKEN).build()
+
+    restore_reservations(app)
     
     app.add_handler(CommandHandler('start', handlers.start_handler))
     app.add_handler(CommandHandler('help', handlers.start_handler))
