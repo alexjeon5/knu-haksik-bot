@@ -3,7 +3,7 @@ from bot import handlers
 # --- 추가: restore_reservations 가져오기 ---
 from bot.reservation import get_conv_handler, restore_reservations
 from bot.scraper import KnuScraper
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
+from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import re
@@ -28,11 +28,14 @@ if __name__ == '__main__':
 
     restore_reservations(app)
     
+    # 시작/도움말을 / 기호 없이 한글로 쳐도 작동하게 만듦
     app.add_handler(CommandHandler('start', handlers.start_handler))
     app.add_handler(CommandHandler('help', handlers.start_handler))
+    app.add_handler(MessageHandler(filters.Regex(r'^/?(start|help|시작|도움말)$'), handlers.start_handler))
+
+    app.add_handler(CallbackQueryHandler(handlers.menu_callback_handler, pattern="^menu_"))
     
     app.add_handler(get_conv_handler())
-    print("[*] 예약 기능 핸들러가 정상적으로 등록(활성화) 되었습니다.")
     
     all_valid_names = list(config.CAFETERIAS.keys())
     for aliases in config.CAFETERIA_ALIASES.values():
@@ -40,8 +43,9 @@ if __name__ == '__main__':
         
     cafeteria_names_str = '|'.join(all_valid_names)
 
-    cafeteria_pattern = f"^(내일\s*)?(저녁\s*)?({cafeteria_names_str})$"
-    cafeteria_filter = filters.TEXT & (filters.Regex('급식') | filters.Regex(cafeteria_pattern))
+    # 패턴 맨 앞에 '/?' 를 추가하여 슬래시(/) 허용
+    cafeteria_pattern = f"^/?(내일\s*)?(저녁\s*)?({cafeteria_names_str})$"
+    cafeteria_filter = filters.TEXT & (filters.Regex(r'^/?(저녁\s*)?학식$') | filters.Regex(cafeteria_pattern))
     
     app.add_handler(MessageHandler(cafeteria_filter, handlers.menu_handler))
     

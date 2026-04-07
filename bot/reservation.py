@@ -12,18 +12,15 @@ import bot.handlers as handlers
 # JSON 백업 파일 경로 설정
 RES_FILE = 'reservations.json'
 
-# 대화 상태(State) 정의
-SELECT_ACTION, SELECT_DAYS, SELECT_CAFETERIA, SELECT_TIME = range(4)
+# 대화 상태(State) 정의 (🌟 CONFIRM_DELETE 상태가 추가되었습니다)
+SELECT_ACTION, SELECT_DAYS, SELECT_CAFETERIA, SELECT_TIME, CONFIRM_DELETE = range(5)
 DAYS_MAP = {0: '월', 1: '화', 2: '수', 3: '목', 4: '금'}
 
 # --- JSON 백업 관리 함수 ---
 def load_reservations_from_file():
-    """JSON 파일에서 예약 데이터를 불러옵니다."""
     if os.path.exists(RES_FILE):
-        # 🌟 추가된 부분: 파일 크기가 0바이트면 빈 딕셔너리 반환
         if os.path.getsize(RES_FILE) == 0:
             return {}
-            
         try:
             with open(RES_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -32,14 +29,12 @@ def load_reservations_from_file():
     return {}
 
 def save_reservation_to_file(chat_id, res_data):
-    """특정 유저의 예약 데이터를 JSON 파일에 저장합니다."""
     data = load_reservations_from_file()
     data[str(chat_id)] = res_data
     with open(RES_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 def delete_reservation_from_file(chat_id):
-    """특정 유저의 예약 데이터를 JSON 파일에서 삭제합니다."""
     data = load_reservations_from_file()
     if str(chat_id) in data:
         del data[str(chat_id)]
@@ -47,7 +42,6 @@ def delete_reservation_from_file(chat_id):
             json.dump(data, f, ensure_ascii=False, indent=4)
 
 def restore_reservations(app):
-    """봇 실행 시 JSON 파일의 데이터를 읽어 스케줄러에 등록합니다."""
     data = load_reservations_from_file()
     count = 0
     for chat_id_str, res in data.items():
@@ -69,18 +63,15 @@ def restore_reservations(app):
 # ---------------------------
 
 def get_user_res(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
-    """유저의 예약 기본값을 가져오거나 설정합니다. (JSON 연동)"""
     if 'reservation' not in context.user_data:
         saved_data = load_reservations_from_file()
         if str(chat_id) in saved_data:
-            # 파일에 저장된 데이터가 있으면 불러오기
             context.user_data['reservation'] = saved_data[str(chat_id)].copy()
         else:
-            # 없으면 초기 기본값 생성
             context.user_data['reservation'] = {
-                'days': [0, 1, 2, 3, 4], # 기본값: 월~금
-                'cafeterias': ['정보센터식당'], # 기본값: 정보센터식당
-                'time': '08:00' # 기본값: 오전 8시
+                'days': [0, 1, 2, 3, 4], 
+                'cafeterias': ['정보센터식당'], 
+                'time': '08:00' 
             }
     return context.user_data['reservation']
 
@@ -90,10 +81,42 @@ def format_res_info(res):
     return f"📅 <b>요일</b>: {days_str}\n🍽 <b>식당</b>: {cafes_str}\n⏰ <b>시간</b>: {res['time']}"
 
 async def res_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/예약 명령어 입력 시 호출되는 함수"""
+    """/예약, /예약 신규, /예약 수정, /예약 취소 명령어 입력 시 호출되는 함수"""
     chat_id = update.effective_chat.id
+    
+    # 입력된 텍스트에서 추가 명령어(신규, 수정, 취소) 분리
+    text_input = update.message.text.strip().lstrip('/')
+    parts = text_input.split()
+    command = parts[1] if len(parts) > 1 else None
+    
     jobs = context.job_queue.get_jobs_by_name(f"res_{chat_id}")
     
+    # 🌟 1. '예약 신규' 또는 '예약 수정' 입력 시 바로 설정 진입
+    if command in ["신규", "수정"]:
+        res = get_user_res(context, chat_id)
+        keyboard = build_days_keyboard(res)
+        await update.message.reply_text(
+            "📅 <b>알림을 받을 요일을 선택해주세요.</b> (중복 선택 가능)\n\n설정이 끝나면 [다음] 버튼을 눌러주세요.", 
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+        return SELECT_DAYS
+        
+    # 🌟 2. '예약 취소' 입력 시 바로 취소 확인 단계 진입
+    elif command == "취소":
+        if not jobs:
+            await update.message.reply_text("등록된 예약 알림이 없습니다.")
+            return ConversationHandler.END
+            
+        keyboard = [
+            [InlineKeyboardButton("네, 취소합니다", callback_data="confirm_delete")],
+            [InlineKeyboardButton("아니오, 유지합니다", callback_data="cancel_delete")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("❓ <b>정말로 예약 알림을 취소하시겠습니까?</b>\n모든 설정값이 초기화됩니다.", reply_markup=reply_markup, parse_mode="HTML")
+        return CONFIRM_DELETE
+        
+    # 3. 추가 인자 없이 '예약'만 입력했을 때 (기존 메뉴 표시)
     if jobs:
         res = context.user_data.get('reservation', get_user_res(context, chat_id))
         text = f"✅ <b>현재 알림이 설정되어 있습니다.</b>\n\n{format_res_info(res)}\n\n무엇을 하시겠습니까?"
@@ -114,20 +137,15 @@ async def handle_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     chat_id = update.effective_chat.id
     
+    # 🌟 기존 메뉴에서 '취소하기' 버튼을 눌렀을 때도 확인(Confirm) 메시지를 띄웁니다.
     if data == "delete":
-        # 1. 등록된 알림 스케줄 삭제
-        jobs = context.job_queue.get_jobs_by_name(f"res_{chat_id}")
-        for job in jobs:
-            job.schedule_removal()
-        
-        # 2. 메모리 및 JSON 파일에서 데이터 삭제
-        if 'reservation' in context.user_data:
-            del context.user_data['reservation']
-        delete_reservation_from_file(chat_id)
-        print(f"[*] 🗑 {chat_id} 유저의 예약 설정값이 초기화 및 삭제되었습니다.")
-            
-        await query.edit_message_text("❌ 예약 알림이 취소되었으며, 모든 설정값이 초기값으로 돌아갔습니다.")
-        return ConversationHandler.END
+        keyboard = [
+            [InlineKeyboardButton("네, 취소합니다", callback_data="confirm_delete")],
+            [InlineKeyboardButton("아니오, 유지합니다", callback_data="cancel_delete")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text("❓ <b>정말로 예약 알림을 취소하시겠습니까?</b>\n모든 설정값이 초기화됩니다.", reply_markup=reply_markup, parse_mode="HTML")
+        return CONFIRM_DELETE
         
     elif data in ["create", "edit"]:
         res = get_user_res(context, chat_id)
@@ -138,6 +156,31 @@ async def handle_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
         return SELECT_DAYS
+
+# 🌟 [신규] 취소 확인(Confirm) 버튼 처리 핸들러
+async def handle_delete_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    chat_id = update.effective_chat.id
+    
+    if data == "confirm_delete":
+        # 사용자가 진짜로 '네'를 눌렀을 때만 데이터 삭제 로직 실행
+        jobs = context.job_queue.get_jobs_by_name(f"res_{chat_id}")
+        for job in jobs:
+            job.schedule_removal()
+        
+        if 'reservation' in context.user_data:
+            del context.user_data['reservation']
+        delete_reservation_from_file(chat_id)
+        print(f"[*] 🗑 {chat_id} 유저의 예약 설정값이 초기화 및 삭제되었습니다.")
+            
+        await query.edit_message_text("❌ 예약 알림이 취소되었으며, 모든 설정값이 초기화되었습니다.")
+    else:
+        # '아니오'를 누른 경우
+        await query.edit_message_text("✅ 예약 알림 취소를 철회하고 기존 설정을 유지합니다.")
+        
+    return ConversationHandler.END
 
 def build_days_keyboard(res):
     keyboard = []
@@ -239,12 +282,10 @@ async def handle_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return SELECT_TIME
         res['time'] = f"{int(match.group(1)):02d}:{int(match.group(2)):02d}"
         
-    # 기존 스케줄 삭제
     jobs = context.job_queue.get_jobs_by_name(f"res_{chat_id}")
     for job in jobs:
         job.schedule_removal()
         
-    # 새 작업 스케줄링
     hour, minute = map(int, res['time'].split(':'))
     t = time(hour=hour, minute=minute, tzinfo=ZoneInfo('Asia/Seoul'))
     
@@ -257,7 +298,6 @@ async def handle_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data=res['cafeterias']
     )
     
-    # JSON 파일에 최종 저장
     save_reservation_to_file(chat_id, res)
     
     await update.message.reply_text(
@@ -267,12 +307,10 @@ async def handle_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """대화 도중 /cancel 입력 시 취소"""
     await update.message.reply_text("예약 설정이 취소되었습니다. 처음부터 다시 하려면 /예약 명령어를 입력해주세요.")
     return ConversationHandler.END
 
 async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
-    """실제로 예약된 시간에 메시지를 전송하는 함수"""
     job = context.job
     chat_id = job.chat_id
     cafeterias = job.data
@@ -302,13 +340,17 @@ async def send_res_notification(context: ContextTypes.DEFAULT_TYPE):
         
 def get_conv_handler():
     """메인 파일에서 등록할 ConversationHandler 반환"""
+    print("[*] 예약 기능 핸들러가 정상적으로 등록(활성화) 되었습니다.")
     return ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex(r'^/?예약$'), res_start)],
+        # 🌟 정규식을 업데이트하여 '신규', '수정', '취소' 인자를 모두 감지할 수 있도록 하였습니다.
+        entry_points=[MessageHandler(filters.Regex(r'^/?예약(\s+(신규|수정|취소))?$'), res_start)],
         states={
             SELECT_ACTION: [CallbackQueryHandler(handle_action)],
             SELECT_DAYS: [CallbackQueryHandler(handle_days)],
             SELECT_CAFETERIA: [CallbackQueryHandler(handle_cafeterias)],
-            SELECT_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_time)]
+            SELECT_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_time)],
+            # 🌟 [신규] '정말 삭제하시겠습니까?'를 처리하는 상태가 추가되었습니다.
+            CONFIRM_DELETE: [CallbackQueryHandler(handle_delete_confirm)] 
         },
         fallbacks=[CommandHandler('cancel', cancel_conversation)]
     )
