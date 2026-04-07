@@ -4,8 +4,9 @@ from bot import config
 
 def get_target_date_info(is_tomorrow=False):
     """
-    현재 시간을 기준으로 조회 대상 요일과 라벨을 반환합니다.
-    금요일에 '내일' 조회 시 다음 주 월요일로 처리하는 로직을 포함합니다.
+    현재 시간을 기준으로 조회 대상 요일과 라벨을 계산하는 함수입니다.
+    is_tomorrow 가 True 인 경우 내일 날짜를 계산하며,
+    금요일 이후에 내일을 요청할 경우 다음 주 월요일로 자동 전환합니다.
     """
     now = datetime.now()
     today_idx = now.weekday()
@@ -17,7 +18,8 @@ def get_target_date_info(is_tomorrow=False):
     is_next_week = False
     
     if is_tomorrow:
-        if today_idx >= 4:  # 금, 토, 일
+        # 금요일(4) 이상인 상황에서 내일 조회 시 다음 주 월요일로 처리
+        if today_idx >= 4:
             target_day = "월"
             day_label = "다음 주"
             is_next_week = True
@@ -35,7 +37,10 @@ def get_target_date_info(is_tomorrow=False):
     }
 
 def format_meal_message(day_label, day_str, cafe_name, meal_type, content):
-    """식단 메시지 형식을 통일합니다."""
+    """
+    조회된 식단 데이터를 일관된 HTML 형식의 메시지로 변환하는 함수입니다.
+    중식과 석식에 따른 타이틀을 구분하여 반환합니다.
+    """
     meal_title = "🌙 <b>[석식]</b>" if meal_type == '석식' else "☀️ <b>[중식]</b>"
     return (
         f"🍴 <b>{day_label}({day_str}) [{cafe_name}] 식단</b>\n"
