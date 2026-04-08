@@ -6,6 +6,14 @@ from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, Cal
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import re
+import logging
+
+# 기본 로깅 설정 (INFO 레벨 이상의 에러를 출력)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 def update_menu_task():
     """전체 식당의 주간 식단 데이터를 크롤링하여 전역 변수에 저장하는 작업입니다."""
@@ -18,18 +26,17 @@ def update_menu_task():
         print("데이터 업데이트 실패")
 
 if __name__ == '__main__':
-    # 프로그램 시작 시 1회 데이터 업데이트 수행
-    update_menu_task()
+    update_menu_task() # 초기 1회 실행
     
-    # 매주 월요일 오전 6시에 자동으로 식단을 업데이트하도록 스케줄러 설정
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(update_menu_task, 'cron', day_of_week='mon', hour=6, minute=0)
-    scheduler.start()
-    
-    # 텔레그램 봇 어플리케이션 빌드
     app = ApplicationBuilder().token(config.TELEGRAM_TOKEN).build()
+    
+    # 별도 스케줄러 대신 JobQueue에 등록 (매주 월요일 6시)
+    app.job_queue.run_daily(
+        lambda context: update_menu_task(), 
+        time=dt.time(hour=6, minute=0, tzinfo=ZoneInfo('Asia/Seoul')),
+        days=(0,) # 월요일
+    )
 
-    # 기존 예약 데이터 복구 및 작업 큐 등록
     restore_reservations(app)
     
     # 명령어 및 텍스트 핸들러 등록
