@@ -8,7 +8,7 @@ services:
       - PYTHONUNBUFFERED=1
       - TZ=Asia/Seoul
     volumes:
-      - ./data:/app/data
+      - /data/haksik:/app/data
     logging:
       driver: "json-file"
       options:
