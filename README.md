@@ -41,3 +41,8 @@ Kyungpook National University School Meal Bot
 - 바이브 코딩으로 학식 봇 만들기
 - 학식 자동 알리미가 필요해서 제작하게 됨.
 - 최초 버전에서는 텔레그램 봇으로만 서비스 하고 있음.
+
+## 타임라인
+- 2026.04.06: 초기 개발 시작 [#Commit 42bb9e2](https://github.com/alexjeon5/knu-haksik-bot/commit/42bb9e240f373e69b651c86c3b4306091a1eabc5)
+- 2026.04.07: 기본 로직 구현 (예약 기능 제외) [#Commit 83ea452](https://github.com/alexjeon5/knu-haksik-bot/commit/83ea452ccfb2b4a48af3c3811a6b057fa8b4552c)
+- 2026.04.08: 예약 기능 구현 및 원격 환경 최적화 [#Commit 1ab6059](https://github.com/alexjeon5/knu-haksik-bot/commit/1ab60599991ff14c80f8c5eb1c5a3da30d0a5bbb)
