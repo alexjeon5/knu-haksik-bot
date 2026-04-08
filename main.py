@@ -4,7 +4,9 @@ from zoneinfo import ZoneInfo  # 시간대 설정을 위해 필요합니다
 from bot import config, handlers
 from bot.reservation import get_conv_handler, restore_reservations
 from bot.scraper import KnuScraper
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
+from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters, TypeHandler
+from telegram import Update
+from bot import analytics
 import re
 import logging
 
@@ -40,6 +42,11 @@ if __name__ == '__main__':
     )
 
     restore_reservations(app)
+
+    # ============== 사용자 수집 핸들러 추가 ==============
+    # group=-1 로 설정하여 다른 일반 핸들러들보다 먼저 실행되게 하고, 
+    # 이벤트 소비를 막아 정상적으로 기존 기능들도 작동하게 합니다.
+    app.add_handler(TypeHandler(Update, analytics.track_user_handler), group=-1)
     
     # 명령어 및 텍스트 핸들러 등록
     app.add_handler(CommandHandler('start', handlers.start_handler))
