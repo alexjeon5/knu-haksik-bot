@@ -1,10 +1,10 @@
 # main.py
+import datetime as dt  # datetime을 dt라는 별칭으로 가져옵니다
+from zoneinfo import ZoneInfo  # 시간대 설정을 위해 필요합니다
 from bot import config, handlers
 from bot.reservation import get_conv_handler, restore_reservations
 from bot.scraper import KnuScraper
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters
-from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
 import re
 import logging
 
