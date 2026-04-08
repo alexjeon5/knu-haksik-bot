@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 def update_menu_task():
     """전체 식당의 주간 식단 데이터를 크롤링하여 전역 변수에 저장하는 작업입니다."""
-    print(f"전체 식당 업데이트 시작: {datetime.now()}")
+    # datetime.now()를 dt.datetime.now()로 수정하여 별칭을 사용하도록 합니다.
+    print(f"전체 식당 업데이트 시작: {dt.datetime.now()}") 
     all_menus = KnuScraper.fetch_all_menus()
     if all_menus:
         handlers.current_menus = all_menus
@@ -55,8 +56,8 @@ if __name__ == '__main__':
     # 점심/저녁/내일 키워드와 식당 이름을 조합한 필터 설정
     cafeteria_pattern = f"^/?(내일\s*)?((저녁|점심)\s*)?({cafeteria_names_str})$"
     general_filter = (
-        filters.Regex(r'^/?(내일\s*)?((저녁|점심)\s*)?학식$') | 
-        filters.Regex(r'^/?(내일\s*)?(저녁|점심)$') | 
+        filters.Regex(r'^/?(내일\s*)?((저녁|점심)\s*)?학식$') |
+        filters.Regex(r'^/?(내일\s*)?(저녁|점심)$') |
         filters.Regex(r'^/?내일$')
     )
     cafeteria_filter = filters.TEXT & (general_filter | filters.Regex(cafeteria_pattern))
