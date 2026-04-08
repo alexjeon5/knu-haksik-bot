@@ -11,7 +11,8 @@ import logging
 # 기본 로깅 설정 (INFO 레벨 이상의 에러를 출력)
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    # level=logging.INFO
+    level=logging.ERROR
 )
 logger = logging.getLogger(__name__)
 
