@@ -18,9 +18,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def update_menu_task():
+async def update_menu_task(context: ContextTypes.DEFAULT_TYPE = None):
     """전체 식당의 주간 식단 데이터를 크롤링하여 전역 변수에 저장하는 작업입니다."""
-    # datetime.now()를 dt.datetime.now()로 수정하여 별칭을 사용하도록 합니다.
     print(f"전체 식당 업데이트 시작: {dt.datetime.now()}") 
     all_menus = KnuScraper.fetch_all_menus()
     if all_menus:
@@ -29,18 +28,18 @@ def update_menu_task():
     else:
         print("데이터 업데이트 실패")
 
-if __name__ == '__main__':
-    update_menu_task() # 초기 1회 실행
-    
+if __name__ == '__main__': 
     app = ApplicationBuilder().token(config.TELEGRAM_TOKEN).build()
     
-    # 별도 스케줄러 대신 JobQueue에 등록 (매주 월요일 6시)
+    # 3. 봇이 시작될 때 즉시 1회 실행하도록 JobQueue에 등록 (when=0)
+    app.job_queue.run_once(update_menu_task, when=0)
+    
+    # 4. 매주 월요일 6시 실행 설정 (lambda 제거하고 함수 이름만 전달)
     app.job_queue.run_daily(
-        lambda context: update_menu_task(), 
+        update_menu_task, 
         time=dt.time(hour=6, minute=0, tzinfo=ZoneInfo('Asia/Seoul')),
         days=(0,) # 월요일
     )
-
     restore_reservations(app)
 
     # ============== 사용자 수집 핸들러 추가 ==============
