@@ -4,7 +4,15 @@ from zoneinfo import ZoneInfo  # 시간대 설정을 위해 필요합니다
 from bot import config, handlers
 from bot.reservation import get_conv_handler, restore_reservations
 from bot.scraper import KnuScraper
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, CallbackQueryHandler, filters, TypeHandler
+from telegram.ext import (
+    ApplicationBuilder, 
+    MessageHandler, 
+    CommandHandler, 
+    CallbackQueryHandler, 
+    filters, 
+    TypeHandler,
+    ContextTypes  # 이 부분을 추가하세요!
+)
 from telegram import Update
 from bot import analytics
 import re
