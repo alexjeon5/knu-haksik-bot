@@ -1,4 +1,5 @@
 # bot/reservation.py
+import copy
 import re
 import json
 import os
@@ -6,7 +7,7 @@ import datetime as dt
 from datetime import time
 from zoneinfo import ZoneInfo
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode  # 이 라인을 추가하세요
+from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from bot import config
 import bot.handlers as handlers
@@ -22,10 +23,11 @@ DAYS_MAP = {0: '월', 1: '화', 2: '수', 3: '목', 4: '금'}
 def load_reservations_from_file():
     """
     저장된 예약 정보를 JSON 파일에서 불러오는 함수입니다.
-    파일이 없으면 새로 생성하며, 동일한 이름의 디렉토리가 있는 경우를 체크합니다.
+    파일 및 상위 디렉토리가 없으면 안전하게 새로 생성합니다.
     """
-    # 1. 경로가 존재하지 않는 경우 빈 파일 생성
+    # 1. 경로가 존재하지 않는 경우 상위 디렉토리 생성 후 빈 파일 생성
     if not os.path.exists(RES_FILE):
+        os.makedirs(os.path.dirname(RES_FILE), exist_ok=True)
         try:
             with open(RES_FILE, 'w', encoding='utf-8') as f:
                 json.dump({}, f)
@@ -90,7 +92,8 @@ def get_user_res(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     if 'reservation' not in context.user_data:
         saved_data = load_reservations_from_file()
         if str(chat_id) in saved_data:
-            context.user_data['reservation'] = saved_data[str(chat_id)].copy()
+            # 원본 데이터 보호를 위해 깊은 복사(deepcopy) 사용
+            context.user_data['reservation'] = copy.deepcopy(saved_data[str(chat_id)])
         else:
             context.user_data['reservation'] = {
                 'days': [0, 1, 2, 3, 4], 
@@ -108,6 +111,11 @@ def format_res_info(res):
 async def res_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/예약 명령어 입력 시 예약 설정 대화 프로세스를 시작하는 진입점입니다."""
     chat_id = update.effective_chat.id
+    
+    # 예약을 새로 시작할 때 기존 캐시 데이터가 있다면 삭제하여 초기화
+    if 'reservation' in context.user_data:
+        del context.user_data['reservation']
+
     text_input = update.message.text.strip().lstrip('/')
     parts = text_input.split()
     command = parts[1] if len(parts) > 1 else None
@@ -266,6 +274,9 @@ async def handle_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """예약 설정 도중 사용자가 대화를 취소할 때 호출됩니다."""
+    # 대화 취소 시에도 캐시 삭제
+    if 'reservation' in context.user_data:
+        del context.user_data['reservation']
     await update.message.reply_text("❌ 예약 설정이 취소되었습니다.")
     return ConversationHandler.END
 
@@ -295,5 +306,9 @@ def get_conv_handler():
             SELECT_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_time)],
             CONFIRM_DELETE: [CallbackQueryHandler(handle_delete_confirm)] 
         },
-        fallbacks=[CommandHandler('cancel', cancel_conversation)]
+        fallbacks=[
+            CommandHandler('cancel', cancel_conversation),
+            # 사용자가 다른 명령어(/start 등)를 입력하면 강제로 예약을 취소시킴
+            MessageHandler(filters.COMMAND, cancel_conversation)
+        ]
     )
